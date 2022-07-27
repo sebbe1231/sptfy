@@ -64,6 +64,11 @@ class MainWindow:
         #10
         self.main_widget_set.add_button("User profile", 8, 0)
         #11
+        self.main_playlist_list = self.main_widget_set.add_scroll_menu("Albums", 1, 0, 5, 2)
+        self.main_playlist_list.add_key_command(py_cui.keys.KEY_ENTER, self.main_playlist_list_command)
+        for playlist in sp.user_playlists(user=sp.current_user()['id'])['items']:
+            self.main_playlist_list.add_item(f"{playlist['name']}   -   URI: {playlist['uri']}")
+        #12
         try:
             self.main_widget_set.add_block_label(f"{self.asciify(sp.current_playback()['item']['album']['images'][0]['url'], 141, 47)}", 0, 2, 8, 6)
         except IndexError:
@@ -81,9 +86,9 @@ class MainWindow:
         #2
         self.artist_list = self.search_widget_set.add_scroll_menu("Artists", 1, 2, 7)
         #3
-        self.album_list = self.search_widget_set.add_scroll_menu("Albums", 1, 3, 7)
+        self.search_album_list = self.search_widget_set.add_scroll_menu("Albums", 1, 3, 7)
         #4
-        self.playlist_list = self.search_widget_set.add_scroll_menu("Playlists", 1, 4, 7)
+        self.search_playlist_list = self.search_widget_set.add_scroll_menu("Playlists", 1, 4, 7)
         #5
         self.episode_list = self.search_widget_set.add_scroll_menu("Episodes", 1, 5, 7)
         #6
@@ -136,11 +141,14 @@ class MainWindow:
         self.main_widget_set.get_widgets()[3].set_title(f'{str(datetime.timedelta(milliseconds=sp.current_playback()["progress_ms"]))[:-7]}/{str(datetime.timedelta(milliseconds=sp.current_playback()["item"]["duration_ms"]))[:-7]}')
 
         try:
-            self.main_widget_set.get_widgets()[11].set_title(f"{self.asciify(sp.current_playback()['item']['album']['images'][0]['url'], 141, 47)}")
+            self.main_widget_set.get_widgets()[12].set_title(f"{self.asciify(sp.current_playback()['item']['album']['images'][0]['url'], 141, 47)}")
         except:
             pass
 
         self.main_widget_set.get_widgets()[4].set_title(f"\"{sp.current_playback()['item']['name']}\" By {sp.current_playback()['item']['artists'][0]['name']} from the album \"{sp.current_playback()['item']['album']['name']}\" (track #{sp.current_playback()['item']['track_number']})") 
+        self.main_playlist_list.clear()
+        for playlist in sp.user_playlists(user=sp.current_user()['id'])['items']:
+            self.main_playlist_list.add_item(f"{playlist['name']}   -   URI: {playlist['uri']}")
 
     #Start playback
     def start_playback(self):
@@ -181,7 +189,6 @@ class MainWindow:
         self.main_widget_set.get_widgets()[8].set_color(color)
         self.main_widget_set.get_widgets()[8].set_title(f"Repeat: {self.repeat_bool}")
 
-
     # Next track/skip track
     def skip(self):
         sp.next_track()
@@ -221,13 +228,26 @@ class MainWindow:
             self.track_list.add_item(f"{tracks['tracks']['items'][i]['name']}                        URI: {tracks['tracks']['items'][i]['uri']}")
 
         for i, x in enumerate(albums['albums']['items'], start=0):
-            self.album_list.add_item(f"{albums['albums']['items'][i]['name']}")
+            self.search_album_list.add_item(f"{albums['albums']['items'][i]['name']}")
 
         for i, x in enumerate(artists['artists']['items'], start=0):
             self.artist_list.add_item(f"{artists['artists']['items'][i]['name']}")
         
         self.search_widget_set.get_widgets()[0].set_title(f"Search results for \"{self.search_bar.get()}\"")
     
+    def popup_main_playlist_list(self, choice):
+        if choice == "Play":
+            sp.start_playback(context_uri=str(self.main_playlist_list.get()).split("   -   URI: ", 1)[1])
+            self.update_track()
+        if choice == "Open playlist":
+            pass
+        if choice == "Cancel":
+            pass
+
+
+    def main_playlist_list_command(self):
+        menu_choices = ["Play", "Open playlist", "Cancel"]
+        self.root.show_menu_popup(title=str(self.main_playlist_list.get()).split("   -   URI: ", 1)[1], menu_items=menu_choices, command=self.popup_main_playlist_list)
     
 
     ##############################
@@ -236,8 +256,7 @@ class MainWindow:
    
     # Start specific track from info widget set
     def start_track_info(self):
-        sp.add_to_queue(str(self.track_list.get()).split("URI: ", 1)[1])
-        sp.next_track()
+        sp.start_playback(uris=[str(self.track_list.get()).split("URI: ", 1)[1]])
 
     # Add track to queue from info widget set
     def add_to_queue_info(self):
@@ -256,8 +275,8 @@ class MainWindow:
                 break
     
     # Go to track info from search
-    def go_to_track_info(self):
-        track = sp.track(str(self.track_list.get()).split('URI: ', 1)[1])
+    def go_to_track_info(self, track_uri):
+        track = sp.track(track_uri)
 
         self.track_info_widget_set.get_widgets()[1].set_title(f"Track: {track['name']}")
         
@@ -301,6 +320,8 @@ class MainWindow:
 
     # Choices for search item
     def popup_search_select_choice_track(self, choice):
+        if choice == "Play":
+            sp.start_playback(uris=str(self.track_list.get()).split("URI: ", 1)[1])
         if choice == "Add to queue":
             sp.add_to_queue(str(self.track_list.get()).split("URI: ", 1)[1])
 
@@ -311,7 +332,7 @@ class MainWindow:
             self.root.show_menu_popup(f"Chose a playlist", menu_choices, self.popup_add_to_playlist)
 
         if choice == "Go to track":
-            self.go_to_track_info()
+            self.go_to_track_info(track_uri=str(self.track_list.get()).split("URI: ", 1)[1])
 
         if choice == "Go to artist":
             print("Go to artist")
@@ -324,7 +345,7 @@ class MainWindow:
 
     # Popup on search item interact
     def popup_search_select_track(self):
-        menu_choices = ["Add to queue", "Add to playlist", "Go to track", "Go to artist", "Go to album", "Cancel"]
+        menu_choices = ["Play", "Add to queue", "Add to playlist", "Go to track", "Go to artist", "Go to album", "Cancel"]
         self.root.show_menu_popup(f"{str(self.track_list.get()).split('      ', 1)[0]}", menu_choices, self.popup_search_select_choice_track)
     
     ##############################
@@ -336,9 +357,9 @@ class MainWindow:
         self.update_track()
         self.root.apply_widget_set(self.main_widget_set)
         self.track_list.clear()
-        self.album_list.clear()
+        self.search_album_list.clear()
         self.artist_list.clear()
-        self.playlist_list.clear()
+        self.search_playlist_list.clear()
         self.episode_list.clear()
         self.show_list.clear()
         self.search_bar.clear()
