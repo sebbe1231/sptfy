@@ -1,3 +1,5 @@
+Dosent work anymore, couldnt be botherd fixing it
+
 # sptfy
 Spotify UI system for CMD
 
